@@ -4,9 +4,9 @@
   "codeowners": ["@opastorello"],
   "config_flow": true,
   "documentation": "https://github.com/opastorello/staysnet-homeassistant",
-  "integration_type": "service",
+  "integration_type": "hub",
   "iot_class": "cloud_polling",
   "issue_tracker": "https://github.com/opastorello/staysnet-homeassistant/issues",
   "requirements": [],
-  "version": "0.1.1"
+  "version": "0.2.0"
 }

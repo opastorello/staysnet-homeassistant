@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
-from freezegun.api import FrozenDateTimeFactory
-from pytest_homeassistant_custom_component.common import MockConfigEntry, async_fire_time_changed
 from datetime import timedelta
 
+from freezegun.api import FrozenDateTimeFactory
 from homeassistant.config_entries import ConfigEntryState
 from homeassistant.core import HomeAssistant
+from pytest_homeassistant_custom_component.common import (
+    MockConfigEntry,
+    async_fire_time_changed,
+)
 
 from .conftest import APT_ID
 
@@ -134,3 +137,113 @@ async def test_unload(hass: HomeAssistant, mock_api, config_entry) -> None:
     assert await hass.config_entries.async_unload(config_entry.entry_id)
     assert config_entry.state is ConfigEntryState.NOT_LOADED
     assert APT_ID  # keep import used
+
+
+async def test_apartment_times_cached_between_polls(
+    hass: HomeAssistant, mock_api, config_entry, freezer: FrozenDateTimeFactory
+) -> None:
+    freezer.move_to("2026-10-10 15:00:00+00:00")
+    await _setup(hass, config_entry)
+    coordinator = config_entry.runtime_data
+    await coordinator.async_refresh()
+    await coordinator.async_refresh()
+    assert mock_api.async_get_apartment_times.call_count == 1
+    # ...but refreshed after the TTL
+    freezer.move_to("2026-10-10 22:00:00+00:00")
+    await coordinator.async_refresh()
+    assert mock_api.async_get_apartment_times.call_count == 2
+
+
+async def test_finished_stay_details_not_refetched_every_poll(
+    hass: HomeAssistant, mock_api, config_entry, freezer: FrozenDateTimeFactory
+) -> None:
+    from .conftest import calendar_entries
+
+    past = {
+        "_id": "r0",
+        "id": "GU00J",
+        "type": "booked",
+        "_dtcheckIn": "2026-09-25",
+        "_dtcheckOut": "2026-09-28",
+    }
+    mock_api.async_get_reservations.return_value = [past, *calendar_entries()]
+    freezer.move_to("2026-10-10 15:00:00+00:00")
+    await _setup(hass, config_entry)
+    coordinator = config_entry.runtime_data
+
+    def calls(rid: str) -> int:
+        return sum(
+            1
+            for c in mock_api.async_get_reservation_details.call_args_list
+            if c.args[0] == rid
+        )
+
+    assert calls("r0") == 1 and calls("r1") == 1
+    freezer.tick(timedelta(minutes=16))
+    await coordinator.async_refresh()
+    assert calls("r0") == 1  # finished stay: cached for 24h
+    assert calls("r1") == 2  # ongoing stay: refreshed every 15 min
+
+
+async def test_removed_property_device_is_deleted(
+    hass: HomeAssistant, mock_api, config_entry, freezer: FrozenDateTimeFactory
+) -> None:
+    from homeassistant.helpers import device_registry as dr
+
+    from custom_components.staysnet.const import (
+        CONF_PROPERTIES,
+        CONF_PROPERTY_CODES,
+        CONF_PROPERTY_NAMES,
+        DOMAIN,
+    )
+
+    other = "b" * 24
+    freezer.move_to("2026-10-10 15:00:00+00:00")
+    config_entry.add_to_hass(hass)
+    hass.config_entries.async_update_entry(
+        config_entry,
+        options={
+            CONF_PROPERTIES: [APT_ID, other],
+            CONF_PROPERTY_NAMES: {APT_ID: "Casa Cynthia", other: "Apto Centro"},
+            CONF_PROPERTY_CODES: {APT_ID: "CE03J", other: "XX01J"},
+        },
+    )
+    assert await hass.config_entries.async_setup(config_entry.entry_id)
+    await hass.async_block_till_done()
+    registry = dr.async_get(hass)
+    assert registry.async_get_device_by_identifier((DOMAIN, other), config_entry.entry_id) is not None
+
+    hass.config_entries.async_update_entry(
+        config_entry,
+        options={
+            CONF_PROPERTIES: [APT_ID],
+            CONF_PROPERTY_NAMES: {APT_ID: "Casa Cynthia"},
+            CONF_PROPERTY_CODES: {APT_ID: "CE03J"},
+        },
+    )
+    await hass.async_block_till_done()
+    assert registry.async_get_device_by_identifier((DOMAIN, other), config_entry.entry_id) is None
+    assert registry.async_get_device_by_identifier((DOMAIN, APT_ID), config_entry.entry_id) is not None
+
+
+async def test_pii_not_recorded_and_diagnostics_redacted(
+    hass: HomeAssistant, mock_api, config_entry, freezer: FrozenDateTimeFactory
+) -> None:
+    from custom_components.staysnet.calendar import StaysCalendar
+    from custom_components.staysnet.diagnostics import (
+        async_get_config_entry_diagnostics,
+    )
+    from custom_components.staysnet.sensor import StaysGuest
+
+    for attr in ("guest_email", "guest_phone", "door_code"):
+        assert attr in StaysGuest._unrecorded_attributes
+    assert "description" in StaysCalendar._unrecorded_attributes
+
+    freezer.move_to("2026-10-10 15:00:00+00:00")
+    await _setup(hass, config_entry)
+    diag = await async_get_config_entry_diagnostics(hass, config_entry)
+    text = str(diag)
+    assert "secret" not in text and "user@example.com" not in text
+    assert "Maria" not in text and "5511987654321" not in text
+    assert "maria@example.com" not in text
+    assert diag["properties"][APT_ID][0]["has_phone"] is True

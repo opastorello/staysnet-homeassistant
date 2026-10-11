@@ -27,7 +27,8 @@
     "error": {
       "invalid_auth": "Invalid e-mail or password (or the password expired and must be changed on Stays.net).",
       "cannot_connect": "Could not connect to Stays.net.",
-      "no_selection": "Select at least one property."
+      "no_selection": "Select at least one property.",
+      "password_expired": "Your Stays.net password has expired. Change it on Stays.net, then enter the new one."
     },
     "abort": {
       "already_configured": "This Stays.net account is already configured.",

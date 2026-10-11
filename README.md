@@ -31,6 +31,9 @@ Cada propriedade selecionada vira um dispositivo com:
 - As reservas vêm só com **datas**; o horário usa o check-in/check-out padrão cadastrado em cada propriedade no Stays. As opções (padrão 14:00 / 11:00) só valem como fallback.
 - `door_code` = últimos 4 dígitos do telefone do hóspede (convenção comum para fechaduras).
 - CPF e endereço do hóspede **não** são expostos de propósito.
+- E-mail, telefone, `door_code` e código de confirmação **não são gravados no histórico** (recorder) do HA, só ficam no estado atual.
+- Em canais como o Booking.com o telefone costuma não vir: nesse caso `door_code` fica vazio.
+- Há *diagnóstico* (Dispositivos e serviços → Stays.net → ⋮ → Baixar diagnóstico) sem credenciais nem dados de hóspedes.
 - Reservas canceladas, bloqueios e manutenção são ignorados.
 
 ## Exemplos de automação

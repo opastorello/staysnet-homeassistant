@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 
 import aiohttp
@@ -63,6 +64,8 @@ class FakeStays:
     async def find(self, request: web.Request) -> web.Response:
         form = await request.post()
         payload = json.loads(form["_t_jsonq"])
+        if payload["password"] == "expired":
+            return web.Response(text="Sua senha expirou, voce precisa trocar a senha")
         if payload["password"] != "secret":
             return web.Response(text="Login ou senha incorretos")
         self.logins += 1
@@ -76,11 +79,11 @@ class FakeStays:
         if request.headers.get("X-Requested-With"):
             return web.Response(status=302)
         resp = web.Response(status=302)
-        resp.set_cookie(COOKIE, "session-token")
+        resp.set_cookie(COOKIE, f"session-{self.logins}")
         return resp
 
     async def home(self, request: web.Request) -> web.Response:
-        if request.cookies.get(COOKIE) != "session-token":
+        if request.cookies.get(COOKIE) != f"session-{self.logins}":
             return web.Response(status=302, headers={"Location": "/signin"})
         return web.Response(text=f"<script>dataLayer.push({{'userId':'{USER_ID}'}})</script>")
 
@@ -88,7 +91,7 @@ class FakeStays:
         if self.expire_next:
             self.expire_next = False
             return web.Response(status=302, headers={"Location": "/user/signin"})
-        if request.cookies.get(COOKIE) != "session-token":
+        if request.cookies.get(COOKIE) != f"session-{self.logins}":
             return web.Response(status=302, headers={"Location": "/user/signin"})
         return None
 
@@ -207,3 +210,38 @@ async def test_relogin_when_session_expires(stays) -> None:
     res = await client.async_get_reservations("a1", "2026-10-01", "2026-11-01")
     assert [r["id"] for r in res] == ["GU01J"]
     assert fake.logins == 2
+
+
+async def test_login_password_expired(stays) -> None:
+    fake, client, host = stays
+    client._password = "expired"
+    with pytest.raises(StaysAuthError, match="password_expired"):
+        await client.async_login()
+
+
+async def test_concurrent_requests_share_one_relogin(stays) -> None:
+    """Single-session server: N parallel requests must trigger ONE re-login."""
+    fake, client, host = stays
+    await _login(client, host)  # logins == 1
+    fake.logins += 1  # server drops our session
+    results = await asyncio.gather(
+        *(client.async_get_reservations("a1", "2026-10-01", "2026-11-01") for _ in range(3))
+    )
+    assert all(len(r) == 1 for r in results)
+    assert fake.logins == 3  # initial + invalidation bump + exactly one re-login
+
+
+async def test_rejected_right_after_login_is_not_auth_error(stays) -> None:
+    """Fresh login but still redirected: transient API error, not a reauth."""
+    fake, client, host = stays
+    await _login(client, host)
+    orig = fake._check
+
+    def always_deny(request):
+        return web.Response(status=302, headers={"Location": "/user/signin"})
+
+    fake._check = always_deny
+    with pytest.raises(StaysApiError) as err:
+        await client.async_get_reservations("a1", "2026-10-01", "2026-11-01")
+    assert not isinstance(err.value, StaysAuthError)
+    fake._check = orig

@@ -6,7 +6,7 @@ import asyncio
 import json
 import logging
 import re
-from datetime import datetime, timedelta
+import time
 from typing import Any
 
 import aiohttp
@@ -21,11 +21,14 @@ _USER_AGENT = (
 )
 _TIMEOUT = aiohttp.ClientTimeout(total=30)
 # Session cookie lasts 24h; refresh a bit earlier.
-_SESSION_TTL = timedelta(hours=20)
+_SESSION_TTL = 20 * 3600  # seconds
 
 
 class StaysApiError(Exception):
     """Generic API/connection error."""
+
+
+PASSWORD_EXPIRED = "password_expired"
 
 
 class StaysAuthError(StaysApiError):
@@ -45,7 +48,7 @@ class StaysApi:
         self.user_id: str | None = None
         self._base_url: str | None = None
         self._cookie: str | None = None
-        self._cookie_at: datetime | None = None
+        self._cookie_at: float | None = None
         self._lock = asyncio.Lock()
 
     # ── auth ────────────────────────────────────────────────
@@ -54,8 +57,8 @@ class StaysApi:
         return bool(
             self._cookie
             and self.user_id
-            and self._cookie_at
-            and datetime.utcnow() - self._cookie_at < _SESSION_TTL
+            and self._cookie_at is not None
+            and time.monotonic() - self._cookie_at < _SESSION_TTL
         )
 
     async def async_login(self) -> None:
@@ -93,6 +96,10 @@ class StaysApi:
             try:
                 data = json.loads(text)
             except ValueError as err:
+                # Non-JSON body: Stays answers with a message instead of the stay list.
+                low = text.lower()
+                if "senha" in low and ("expirou" in low or "trocar" in low):
+                    raise StaysAuthError(PASSWORD_EXPIRED) from err
                 raise StaysAuthError("invalid_auth") from err
 
             if not isinstance(data, list) or not data:
@@ -146,7 +153,7 @@ class StaysApi:
         self.user_id = user_id
         self._base_url = base_url
         self._cookie = cookie
-        self._cookie_at = datetime.utcnow()
+        self._cookie_at = time.monotonic()
 
     # ── low level ───────────────────────────────────────────
 
@@ -156,6 +163,7 @@ class StaysApi:
         async with self._lock:
             if not self._session_valid():
                 await self._login()
+            used_cookie = self._cookie
 
         assert self._base_url and self.system_id
         cookie_name = f"hdbid_sn_{self.system_id}"
@@ -169,7 +177,7 @@ class StaysApi:
                     "X-Requested-With": "XMLHttpRequest",
                     "Referer": f"{self._base_url}/",
                     "Origin": self._base_url,
-                    "Cookie": f"{cookie_name}={self._cookie}",
+                    "Cookie": f"{cookie_name}={used_cookie}",
                 },
                 allow_redirects=False,
                 timeout=_TIMEOUT,
@@ -189,8 +197,13 @@ class StaysApi:
 
         if expired:
             if not _retry:
-                raise StaysAuthError("Session rejected after re-login")
-            self._cookie = None
+                # We had just logged in, so credentials are fine: not a reauth case.
+                raise StaysApiError("Session rejected right after login")
+            async with self._lock:
+                # Concurrent requests share one re-login: only drop the cookie that
+                # failed, not a fresh one another request already obtained.
+                if self._cookie == used_cookie:
+                    self._cookie = None
             return await self._post(path, body, _retry=False)
         return None  # pragma: no cover
 

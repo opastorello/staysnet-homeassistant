@@ -8,11 +8,12 @@ import aiohttp
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant, callback
+from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.aiohttp_client import async_create_clientsession
 from homeassistant.helpers.event import async_track_time_interval
 
 from .api import StaysApi
-from .const import CONF_PASSWORD, CONF_USERNAME
+from .const import CONF_PASSWORD, CONF_USERNAME, DOMAIN
 from .coordinator import StaysCoordinator
 
 PLATFORMS = [Platform.CALENDAR, Platform.SENSOR, Platform.BINARY_SENSOR]
@@ -29,6 +30,15 @@ async def async_setup_entry(hass: HomeAssistant, entry: StaysConfigEntry) -> boo
     coordinator = StaysCoordinator(hass, entry, api)
     await coordinator.async_config_entry_first_refresh()
     entry.runtime_data = coordinator
+
+    # Properties removed in the options flow: drop their now-orphaned devices.
+    registry = dr.async_get(hass)
+    wanted = {(DOMAIN, apt_id) for apt_id in coordinator.property_ids}
+    for device in dr.async_entries_for_config_entry(registry, entry.entry_id):
+        if not device.identifiers & wanted:
+            registry.async_update_device(
+                device.id, remove_config_entry_id=entry.entry_id
+            )
 
     # Status/occupancy depend on the clock (check-in at 14:00, ...): re-evaluate
     # entity states every minute from cached data, without hitting the API.

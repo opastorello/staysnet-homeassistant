@@ -52,6 +52,8 @@ class StaysCalendar(StaysEntity, CalendarEntity):
     """Reservations of one property."""
 
     _attr_name = None  # use the device (property) name
+    # The description carries guest phone/e-mail: keep it out of the recorder.
+    _unrecorded_attributes = frozenset({"description"})
 
     def __init__(self, coordinator: StaysCoordinator, apartment_id: str) -> None:
         super().__init__(coordinator, apartment_id)

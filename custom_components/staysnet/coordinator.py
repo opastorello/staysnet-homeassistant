@@ -49,6 +49,7 @@ _LOGGER = logging.getLogger(__name__)
 # Stays-sync caps its window at 365 days; stay below that (30 back + <=330 ahead).
 # Past days included so a stay that began before today is still seen as "current".
 _LOOKBACK_DAYS = 30
+_APT_TIMES_TTL = timedelta(hours=6)
 
 
 @dataclass(frozen=True)
@@ -81,6 +82,20 @@ class PropertyState:
     current: Reservation | None
     next: Reservation | None
     status: str
+
+
+def _details_ttl(dates: tuple[str, str], today: date) -> timedelta:
+    """How long cached guest details stay fresh.
+
+    Imminent/ongoing stays refresh often (guest data like phone is filled in late),
+    finished ones barely matter and far-future ones change slowly.
+    """
+    start, end = _parse_date(dates[0]), _parse_date(dates[1])
+    if end is not None and end < today - timedelta(days=1):
+        return timedelta(hours=24)
+    if start is None or (start - today).days <= 7:
+        return timedelta(minutes=15)
+    return timedelta(hours=6)
 
 
 def _parse_time(value: str, default: str) -> time:
@@ -119,6 +134,9 @@ class StaysCoordinator(DataUpdateCoordinator[dict[str, list[Reservation]]]):
         self._details_cache: dict[
             str, tuple[tuple[str, str], dict[str, Any], datetime]
         ] = {}
+        # Property default check-in/out hours rarely change: refresh every few hours.
+        self._apt_times: dict[str, tuple[int | None, int | None]] = {}
+        self._apt_times_at: datetime | None = None
 
     @property
     def property_ids(self) -> list[str]:
@@ -141,13 +159,7 @@ class StaysCoordinator(DataUpdateCoordinator[dict[str, list[Reservation]]]):
         try:
             # Per-property default check-in/out hours configured in Stays; the
             # options only act as fallback if Stays doesn't provide them.
-            try:
-                apt_times = await self.api.async_get_apartment_times()
-            except StaysAuthError:
-                raise
-            except StaysApiError as err:
-                _LOGGER.debug("Could not fetch apartment times: %s", err)
-                apt_times = {}
+            apt_times = await self._apartment_times()
 
             result: dict[str, list[Reservation]] = {}
             sem = asyncio.Semaphore(3)
@@ -185,6 +197,18 @@ class StaysCoordinator(DataUpdateCoordinator[dict[str, list[Reservation]]]):
         }
         return result
 
+    async def _apartment_times(self) -> dict[str, tuple[int | None, int | None]]:
+        now = dt_util.utcnow()
+        if self._apt_times_at is None or now - self._apt_times_at > _APT_TIMES_TTL:
+            try:
+                self._apt_times = await self.api.async_get_apartment_times()
+            except StaysAuthError:
+                raise
+            except StaysApiError as err:
+                _LOGGER.debug("Could not fetch apartment times: %s", err)
+            self._apt_times_at = now  # also on failure: don't retry every poll
+        return self._apt_times
+
     async def _details(
         self, entry: dict[str, Any], sem: asyncio.Semaphore
     ) -> dict[str, Any]:
@@ -195,11 +219,8 @@ class StaysCoordinator(DataUpdateCoordinator[dict[str, list[Reservation]]]):
         )
         cached = self._details_cache.get(mongo_id)
         if cached and cached[0] == dates:
-            now = dt_util.utcnow()
-            start_d = _parse_date(dates[0])
-            soon = start_d is None or (start_d - now.date()).days <= 7
-            ttl = timedelta(minutes=15) if soon else timedelta(hours=6)
-            if now - cached[2] < ttl:
+            ttl = _details_ttl(dates, dt_util.now().date())
+            if dt_util.utcnow() - cached[2] < ttl:
                 return cached[1]
         if not mongo_id:
             return {}

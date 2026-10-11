@@ -27,7 +27,8 @@
     "error": {
       "invalid_auth": "E-mail ou senha inválidos (ou a senha expirou e precisa ser trocada no Stays.net).",
       "cannot_connect": "Não foi possível conectar ao Stays.net.",
-      "no_selection": "Selecione pelo menos uma propriedade."
+      "no_selection": "Selecione pelo menos uma propriedade.",
+      "password_expired": "Sua senha do Stays.net expirou. Troque no Stays.net e informe a nova."
     },
     "abort": {
       "already_configured": "Esta conta Stays.net já está configurada.",

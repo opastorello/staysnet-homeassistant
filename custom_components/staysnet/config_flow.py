@@ -31,7 +31,7 @@ from homeassistant.helpers.selector import (
 from homeassistant.util import dt as dt_util
 
 from . import StaysConfigEntry
-from .api import StaysApi, StaysApiError, StaysAuthError
+from .api import PASSWORD_EXPIRED, StaysApi, StaysApiError, StaysAuthError
 from .const import (
     CONF_CHECKIN_TIME,
     CONF_CHECKOUT_TIME,
@@ -62,6 +62,10 @@ USER_SCHEMA = vol.Schema(
         ),
     }
 )
+
+
+def _auth_error(err: StaysAuthError) -> str:
+    return PASSWORD_EXPIRED if str(err) == PASSWORD_EXPIRED else "invalid_auth"
 
 
 def _make_api(hass: HomeAssistant, username: str, password: str) -> StaysApi:
@@ -129,8 +133,8 @@ class StaysConfigFlow(ConfigFlow, domain=DOMAIN):
             try:
                 await api.async_login()
                 self._labels, self._names, self._codes = await _fetch_apartments(api)
-            except StaysAuthError:
-                errors["base"] = "invalid_auth"
+            except StaysAuthError as err:
+                errors["base"] = _auth_error(err)
             except StaysApiError:
                 errors["base"] = "cannot_connect"
             else:
@@ -200,8 +204,8 @@ class StaysConfigFlow(ConfigFlow, domain=DOMAIN):
             )
             try:
                 await api.async_login()
-            except StaysAuthError:
-                errors["base"] = "invalid_auth"
+            except StaysAuthError as err:
+                errors["base"] = _auth_error(err)
             except StaysApiError:
                 errors["base"] = "cannot_connect"
             else:

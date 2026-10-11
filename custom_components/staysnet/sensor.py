@@ -63,6 +63,10 @@ class StaysGuest(StaysEntity, SensorEntity):
 
     _attr_translation_key = "guest"
     _attr_icon = "mdi:account-key"
+    # Personal data / door code must not end up in the recorder history.
+    _unrecorded_attributes = frozenset(
+        {"guest_email", "guest_phone", "door_code", "confirmation_code"}
+    )
 
     def __init__(self, coordinator: StaysCoordinator, apartment_id: str) -> None:
         super().__init__(coordinator, apartment_id)

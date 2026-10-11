@@ -58,6 +58,15 @@ async def test_invalid_auth_then_recover(hass: HomeAssistant, mock_api) -> None:
     assert result["step_id"] == "properties"
 
 
+async def test_password_expired_error(hass: HomeAssistant, mock_api) -> None:
+    mock_api.async_login.side_effect = StaysAuthError("password_expired")
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": config_entries.SOURCE_USER}
+    )
+    result = await hass.config_entries.flow.async_configure(result["flow_id"], USER)
+    assert result["errors"] == {"base": "password_expired"}
+
+
 async def test_no_properties_selected(hass: HomeAssistant, mock_api) -> None:
     result = await hass.config_entries.flow.async_init(
         DOMAIN, context={"source": config_entries.SOURCE_USER}

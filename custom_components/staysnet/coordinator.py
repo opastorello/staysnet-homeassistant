@@ -169,6 +169,23 @@ def _details_ttl(dates: tuple[str, str], today: date) -> timedelta:
     return timedelta(hours=6)
 
 
+def _time_from_raw(raw: Any) -> time | None:
+    """Wall-clock time Stays stores in a reservation's check-in/out datetime.
+
+    Stays sends e.g. "2026-10-10T14:00:00.000Z" where 14:00 IS the local check-in
+    time (the "Z" is cosmetic: it matches the property's default hour). A bare date
+    or a midnight value carries no time.
+    """
+    match = re.search(r"T(\d{2}):(\d{2})", str(raw or ""))
+    if not match:
+        return None
+    try:
+        value = time(int(match[1]), int(match[2]))
+    except ValueError:
+        return None
+    return None if value == time(0, 0) else value
+
+
 def _parse_time(value: str, default: str) -> time:
     try:
         return time.fromisoformat(value or default)
@@ -375,8 +392,13 @@ class StaysCoordinator(DataUpdateCoordinator[StaysData]):
             mongo_id=entry.get("_id", ""),
             code=entry.get("id", ""),
             apartment_id=apt_id,
-            start=datetime.combine(start_d, checkin_t, tzinfo=tz),
-            end=datetime.combine(end_d, checkout_t, tzinfo=tz),
+            # Times: the reservation's own (platform) > property default > options
+            start=datetime.combine(
+                start_d, _time_from_raw(entry.get("_dtcheckIn")) or checkin_t, tzinfo=tz
+            ),
+            end=datetime.combine(
+                end_d, _time_from_raw(entry.get("_dtcheckOut")) or checkout_t, tzinfo=tz
+            ),
             channel=partner.get("name") or detect_channel(entry),
             guest_name=extract_name(client),
             guest_email=extract_email(client),

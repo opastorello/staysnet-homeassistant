@@ -21,7 +21,7 @@ Requer Home Assistant **2026.10.0** ou superior.
 
 (Manual: HACS → ⋮ → *Repositórios personalizados* → `opastorello/staysnet-homeassistant`, categoria *Integração*.)
 
-Em *Configurar* você muda as propriedades, a janela de dias e o intervalo de atualização. Os horários de check-in/out vêm do cadastro de cada propriedade no Stays; as opções de horário só valem como reserva (fallback).
+Em *Configurar* você muda as propriedades, a janela de dias e o intervalo de atualização. Os horários de check-in/out vêm do Stays (da própria reserva e, na falta, do cadastro da propriedade); as opções de horário só valem como último recurso.
 
 ## Entidades (por propriedade)
 
@@ -45,7 +45,7 @@ Em *Configurar* você muda as propriedades, a janela de dias e o intervalo de at
 
 E, na conta: **Atualizar agora** (botão) e **Última atualização** (diagnóstico).
 
-- As reservas vêm só com **datas**; o horário usa o check-in/check-out padrão da propriedade no Stays.
+- Os horários vêm **do Stays**: a hora de check-in/out da própria reserva (por exemplo, um check-in antecipado combinado) e, quando a reserva não traz hora, o padrão cadastrado na propriedade. As opções de horário só valem se o Stays não informar nenhum.
 - `door_code` = últimos 4 dígitos do telefone do hóspede; sem telefone (comum no Booking.com), os últimos 4 dígitos do código de confirmação. O atributo `door_code_source` diz de onde veio (`phone` ou `confirmation_code`).
 - CPF e endereço do hóspede **não** são expostos. E-mail, telefone, `door_code` e código de confirmação **não são gravados no histórico** (recorder).
 - Reservas canceladas são ignoradas.

@@ -255,3 +255,48 @@ async def test_pii_not_recorded_and_diagnostics_redacted(
     # raw Stays strings are exposed to see where check-in/out hours come from
     assert first["stays_raw_check_in"].startswith("2026-10-08")
     assert diag["properties"][APT_ID]["blocks"] == 1
+
+
+async def test_times_come_from_the_reservation_then_the_property(
+    hass: HomeAssistant, mock_api, config_entry, freezer: FrozenDateTimeFactory
+) -> None:
+    """Stays puts the wall-clock time in _dtcheckIn/_dtcheckOut ("Z" is cosmetic)."""
+    entries = [
+        {  # custom times negotiated in Stays: early check-in, late check-out
+            "_id": "r1",
+            "id": "GU01J",
+            "type": "booked",
+            "_dtcheckIn": "2026-10-08T12:30:00.000Z",
+            "_dtcheckOut": "2026-10-12T16:45:00.000Z",
+        },
+        {  # date only / midnight: no time info -> property default (15h / 10h in the mock)
+            "_id": "r2",
+            "id": "GU02J",
+            "type": "booked",
+            "_dtcheckIn": "2026-10-14T00:00:00.000Z",
+            "_dtcheckOut": "2026-10-17",
+        },
+    ]
+    mock_api.async_get_reservations.return_value = entries
+    freezer.move_to("2026-10-10 15:00:00+00:00")
+    await _setup(hass, config_entry)
+
+    attrs = hass.states.get("sensor.casa_cynthia_guest").attributes
+    assert attrs["check_in"] == "2026-10-08T12:30:00-07:00"
+    assert attrs["check_out"] == "2026-10-12T16:45:00-07:00"
+    nxt = hass.states.get("sensor.casa_cynthia_next_guest").attributes
+    assert nxt["check_in"] == "2026-10-14T15:00:00-07:00"
+    assert nxt["check_out"] == "2026-10-17T10:00:00-07:00"
+
+
+def test_time_from_raw() -> None:
+    from datetime import time
+
+    from custom_components.staysnet.coordinator import _time_from_raw
+
+    assert _time_from_raw("2026-10-10T14:00:00.000Z") == time(14, 0)
+    assert _time_from_raw("2026-10-10T09:15:00+00:00") == time(9, 15)
+    assert _time_from_raw("2026-10-10T00:00:00.000Z") is None
+    assert _time_from_raw("2026-10-10") is None
+    assert _time_from_raw("") is None and _time_from_raw(None) is None
+    assert _time_from_raw("2026-10-10T25:99:00") is None

@@ -1,0 +1,87 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Connect to Stays.net",
+        "description": "Use the same e-mail and password you use to sign in to Stays.net.",
+        "data": {
+          "username": "E-mail",
+          "password": "Password"
+        }
+      },
+      "properties": {
+        "title": "Properties",
+        "description": "Select the properties whose reservations should be imported.",
+        "data": {
+          "properties": "Properties"
+        }
+      },
+      "reauth_confirm": {
+        "title": "Re-authenticate",
+        "description": "Stays.net rejected the stored password for {username} (it may have expired). Enter the new password.",
+        "data": {
+          "password": "Password"
+        }
+      }
+    },
+    "error": {
+      "invalid_auth": "Invalid e-mail or password (or the password expired and must be changed on Stays.net).",
+      "cannot_connect": "Could not connect to Stays.net.",
+      "no_selection": "Select at least one property."
+    },
+    "abort": {
+      "already_configured": "This Stays.net account is already configured.",
+      "no_properties": "No properties were found in this account.",
+      "reauth_successful": "Re-authentication successful."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Stays.net options",
+        "data": {
+          "properties": "Properties",
+          "checkin_time": "Check-in time",
+          "checkout_time": "Check-out time",
+          "days_ahead": "Days ahead to load",
+          "scan_interval": "Update interval (minutes)"
+        },
+        "data_description": {
+          "checkin_time": "Fallback used only when the property has no default check-in hour in Stays.",
+          "checkout_time": "Time applied to check-out."
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Could not connect to Stays.net.",
+      "no_selection": "Select at least one property."
+    }
+  },
+  "entity": {
+    "binary_sensor": {
+      "occupied": {
+        "name": "Occupied"
+      }
+    },
+    "sensor": {
+      "status": {
+        "name": "Stay status",
+        "state": {
+          "vacant": "Vacant",
+          "checkin_today": "Check-in today",
+          "occupied": "Occupied",
+          "checkout_today": "Check-out today"
+        }
+      },
+      "guest": {
+        "name": "Guest"
+      },
+      "next_checkin": {
+        "name": "Next check-in"
+      },
+      "next_checkout": {
+        "name": "Next check-out"
+      }
+    }
+  }
+}

@@ -1,0 +1,87 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Conectar ao Stays.net",
+        "description": "Use o mesmo e-mail e senha que você usa para entrar no Stays.net.",
+        "data": {
+          "username": "E-mail",
+          "password": "Senha"
+        }
+      },
+      "properties": {
+        "title": "Propriedades",
+        "description": "Selecione as propriedades cujas reservas devem ser importadas.",
+        "data": {
+          "properties": "Propriedades"
+        }
+      },
+      "reauth_confirm": {
+        "title": "Autenticar novamente",
+        "description": "O Stays.net recusou a senha salva para {username} (ela pode ter expirado). Informe a nova senha.",
+        "data": {
+          "password": "Senha"
+        }
+      }
+    },
+    "error": {
+      "invalid_auth": "E-mail ou senha inválidos (ou a senha expirou e precisa ser trocada no Stays.net).",
+      "cannot_connect": "Não foi possível conectar ao Stays.net.",
+      "no_selection": "Selecione pelo menos uma propriedade."
+    },
+    "abort": {
+      "already_configured": "Esta conta Stays.net já está configurada.",
+      "no_properties": "Nenhuma propriedade encontrada nesta conta.",
+      "reauth_successful": "Reautenticação concluída."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Opções do Stays.net",
+        "data": {
+          "properties": "Propriedades",
+          "checkin_time": "Horário de check-in",
+          "checkout_time": "Horário de check-out",
+          "days_ahead": "Dias à frente para carregar",
+          "scan_interval": "Intervalo de atualização (minutos)"
+        },
+        "data_description": {
+          "checkin_time": "Usado só se a propriedade não tiver horário padrão de check-in no Stays.",
+          "checkout_time": "Horário aplicado ao check-out."
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Não foi possível conectar ao Stays.net.",
+      "no_selection": "Selecione pelo menos uma propriedade."
+    }
+  },
+  "entity": {
+    "binary_sensor": {
+      "occupied": {
+        "name": "Ocupado"
+      }
+    },
+    "sensor": {
+      "status": {
+        "name": "Status da estadia",
+        "state": {
+          "vacant": "Vago",
+          "checkin_today": "Check-in hoje",
+          "occupied": "Ocupado",
+          "checkout_today": "Check-out hoje"
+        }
+      },
+      "guest": {
+        "name": "Hóspede"
+      },
+      "next_checkin": {
+        "name": "Próximo check-in"
+      },
+      "next_checkout": {
+        "name": "Próximo check-out"
+      }
+    }
+  }
+}

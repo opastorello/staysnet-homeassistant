@@ -1,0 +1,107 @@
+blueprint:
+  name: "Stays.net · Senha da fechadura (criar na chegada, apagar na saída)"
+  description: >-
+    Cria a senha do hóspede na fechadura algumas horas antes do check-in e a
+    remove no check-out.
+
+
+    A senha (`stay.door_code`) são os últimos 4 dígitos do telefone do hóspede;
+    se a reserva não tiver telefone (comum no Booking.com), são os últimos 4
+    dígitos do código de confirmação. Se nenhum dos dois existir, `stay.door_code`
+    vem vazio, então vale proteger a ação com uma condição.
+
+
+    Obs.: o Home Assistant entrega `{{ stay.door_code }}` como número quando o
+    código é só dígitos (3210); códigos como 0000 continuam texto. Fechaduras
+    aceitam os dois.
+
+
+    Variável `stay` nas duas listas de ações: `stay.door_code`, `stay.guest_name`,
+    `stay.guest_phone`, `stay.check_in`, `stay.check_out` e `stay.reservation_id`.
+  domain: automation
+  author: opastorello
+  source_url: https://github.com/opastorello/staysnet-homeassistant/blob/main/blueprints/automation/staysnet/door_code.yaml
+  homeassistant:
+    min_version: 2024.10.0
+  input:
+    stays_event:
+      name: Propriedade (entidade "Eventos da estadia")
+      selector:
+        entity:
+          filter:
+            - integration: staysnet
+              domain: event
+    next_checkin:
+      name: Sensor "Próximo check-in" da mesma propriedade
+      selector:
+        entity:
+          filter:
+            - integration: staysnet
+              domain: sensor
+              device_class: timestamp
+    lead_hours:
+      name: Criar a senha quantas horas antes do check-in
+      default: 3
+      selector:
+        number:
+          min: 0.25
+          max: 72
+          step: 0.25
+          unit_of_measurement: h
+          mode: box
+    set_actions:
+      name: Criar a senha na fechadura
+      description: Use `{{ stay.door_code }}` como senha.
+      selector:
+        action: {}
+    clear_actions:
+      name: Apagar a senha na fechadura (no check-out)
+      selector:
+        action: {}
+
+mode: queued
+max_exceeded: silent
+
+trigger_variables:
+  checkin_sensor: !input next_checkin
+  lead_hours: !input lead_hours
+
+triggers:
+  - trigger: template
+    id: set
+    value_template: >-
+      {% set ts = states(checkin_sensor) %}
+      {{ ts not in ['unknown', 'unavailable', 'none']
+         and 0 < (as_timestamp(ts) - now().timestamp()) <= (lead_hours | float) * 3600 }}
+  - trigger: state
+    id: clear
+    entity_id: !input stays_event
+
+actions:
+  - choose:
+      - conditions:
+          - condition: trigger
+            id: set
+        sequence:
+          - action: staysnet.get_stay
+            data:
+              entity_id: !input next_checkin
+              which: next
+            response_variable: stay
+          - sequence: !input set_actions
+      - conditions:
+          - condition: trigger
+            id: clear
+          - condition: template
+            value_template: >-
+              {{ trigger.to_state is not none
+                 and trigger.to_state.state not in ['unknown', 'unavailable']
+                 and (now() - as_datetime(trigger.to_state.state)).total_seconds() < 120
+                 and trigger.to_state.attributes.event_type == 'check_out' }}
+        sequence:
+          - action: staysnet.get_stay
+            data:
+              entity_id: !input stays_event
+              which: last
+            response_variable: stay
+          - sequence: !input clear_actions

@@ -25,9 +25,30 @@ DEFAULT_CHECKOUT_TIME = "11:00:00"
 BASE_URL_TEMPLATE = "https://{system_id}.stays.net"
 LOGIN_URL = "https://my.stays.net/restapi/undefined/users/findMyStays"
 
-# Calendar entry types that are NOT stays. Everything else (booked, reserved,
+# Calendar entry types. Anything that is not a block or cancelled (booked, reserved,
 # contract, altered, ...) is a reservation, as in stays-sync.
-NON_STAY_TYPES = {"blocked", "maintenance", "cancelled", "canceled"}
+BLOCK_TYPES = {"blocked", "maintenance"}
+CANCELLED_TYPES = {"cancelled", "canceled"}
+
+# Stay events (bus events are fired as "staysnet_<event>")
+EVENT_CHECK_IN = "check_in"
+EVENT_CHECK_OUT = "check_out"
+EVENT_CREATED = "reservation_created"
+EVENT_CHANGED = "reservation_changed"
+EVENT_CANCELLED = "reservation_cancelled"
+STAY_EVENT_TYPES = [
+    EVENT_CHECK_IN,
+    EVENT_CHECK_OUT,
+    EVENT_CREATED,
+    EVENT_CHANGED,
+    EVENT_CANCELLED,
+]
+
+
+def event_signal(entry_id: str, apartment_id: str) -> str:
+    """Dispatcher signal for the event entity of one property."""
+    return f"{DOMAIN}_{entry_id}_{apartment_id}_event"
+
 
 # Stays.net OTA flag -> channel name
 OTA_FLAGS = {

@@ -76,6 +76,7 @@ DETAILS = {
     "r2": {
         "_t_client": {"fName": "João", "lName": "Souza", "phones": []},
         "_i_quantOfGuests": 2,
+        "pcode": "9876543210",
     },
 }
 

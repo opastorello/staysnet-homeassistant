@@ -1,0 +1,52 @@
+blueprint:
+  name: "Stays.net · Chegada do hóspede (check-in)"
+  description: >-
+    Executa suas ações no horário de check-in de uma propriedade.
+
+
+    Dentro das ações você pode usar a variável `stay` com os dados do hóspede:
+    `stay.guest_name`, `stay.guest_phone`, `stay.guest_email`, `stay.guest_count`,
+    `stay.channel`, `stay.door_code`, `stay.nights`, `stay.check_in`,
+    `stay.check_out` e `stay.reservation_id`.
+  domain: automation
+  author: opastorello
+  source_url: https://github.com/opastorello/staysnet-homeassistant/blob/main/blueprints/automation/staysnet/guest_arrival.yaml
+  homeassistant:
+    min_version: 2024.10.0
+  input:
+    stays_event:
+      name: Propriedade (entidade "Eventos da estadia")
+      description: Escolha a entidade de eventos da propriedade, criada pela integração Stays.net.
+      selector:
+        entity:
+          filter:
+            - integration: staysnet
+              domain: event
+    arrival_actions:
+      name: O que fazer quando o hóspede chegar
+      description: Luzes, clima, mensagem de boas-vindas, etc.
+      selector:
+        action: {}
+
+mode: queued
+max_exceeded: silent
+
+triggers:
+  - trigger: state
+    entity_id: !input stays_event
+
+conditions:
+  - condition: template
+    value_template: >-
+      {{ trigger.to_state is not none
+         and trigger.to_state.state not in ['unknown', 'unavailable']
+         and (now() - as_datetime(trigger.to_state.state)).total_seconds() < 120
+         and trigger.to_state.attributes.event_type == 'check_in' }}
+
+actions:
+  - action: staysnet.get_stay
+    data:
+      entity_id: !input stays_event
+      which: current
+    response_variable: stay
+  - sequence: !input arrival_actions

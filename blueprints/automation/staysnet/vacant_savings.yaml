@@ -1,0 +1,75 @@
+blueprint:
+  name: "Stays.net · Modo economia com a casa vaga"
+  description: >-
+    Depois de a propriedade ficar vaga por algumas horas e **sem chegada próxima**,
+    executa suas ações de economia (desligar luzes e tomadas, clima eco, etc.).
+  domain: automation
+  author: opastorello
+  source_url: https://github.com/opastorello/staysnet-homeassistant/blob/main/blueprints/automation/staysnet/vacant_savings.yaml
+  homeassistant:
+    min_version: 2024.10.0
+  input:
+    occupied:
+      name: Sensor "Ocupado" da propriedade
+      selector:
+        entity:
+          filter:
+            - integration: staysnet
+              domain: binary_sensor
+              device_class: occupancy
+    next_checkin:
+      name: Sensor "Próximo check-in" da mesma propriedade
+      selector:
+        entity:
+          filter:
+            - integration: staysnet
+              domain: sensor
+              device_class: timestamp
+    vacant_hours:
+      name: Vaga há quantas horas
+      default: 3
+      selector:
+        number:
+          min: 0.25
+          max: 72
+          step: 0.25
+          unit_of_measurement: h
+          mode: box
+    arrival_buffer_hours:
+      name: Não economizar se houver chegada nas próximas (horas)
+      default: 6
+      selector:
+        number:
+          min: 0
+          max: 168
+          step: 0.5
+          unit_of_measurement: h
+          mode: box
+    saving_actions:
+      name: Ações de economia
+      selector:
+        action: {}
+
+mode: single
+max_exceeded: silent
+
+variables:
+  checkin_sensor: !input next_checkin
+  buffer_hours: !input arrival_buffer_hours
+
+triggers:
+  - trigger: state
+    entity_id: !input occupied
+    to: "off"
+    for:
+      hours: !input vacant_hours
+
+conditions:
+  - condition: template
+    value_template: >-
+      {% set ts = states(checkin_sensor) %}
+      {{ ts in ['unknown', 'unavailable', 'none']
+         or (as_timestamp(ts) - now().timestamp()) > (buffer_hours | float) * 3600 }}
+
+actions:
+  - sequence: !input saving_actions

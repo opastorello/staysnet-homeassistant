@@ -1,0 +1,77 @@
+blueprint:
+  name: "Stays.net · Aviso para a limpeza no check-out"
+  description: >-
+    No check-out, avisa a limpeza e diz se há **virada no mesmo dia** (outro hóspede
+    chegando hoje) ou quando é a próxima chegada.
+
+
+    Variáveis disponíveis nas ações: `title`, `message` (texto pronto em português),
+    `turnover` (verdadeiro se há check-in hoje), `next_day`, `next_time`, `property_name`, `stay` (a estadia
+    que terminou) e `next_stay` (a próxima, com `next_stay.found`).
+  domain: automation
+  author: opastorello
+  source_url: https://github.com/opastorello/staysnet-homeassistant/blob/main/blueprints/automation/staysnet/cleaning_alert.yaml
+  homeassistant:
+    min_version: 2024.10.0
+  input:
+    stays_event:
+      name: Propriedade (entidade "Eventos da estadia")
+      selector:
+        entity:
+          filter:
+            - integration: staysnet
+              domain: event
+    cleaning_actions:
+      name: Como avisar a limpeza
+      description: Por exemplo, notificação ou mensagem. Use `{{ title }}` e `{{ message }}`.
+      selector:
+        action: {}
+
+mode: queued
+max_exceeded: silent
+
+triggers:
+  - trigger: state
+    entity_id: !input stays_event
+
+conditions:
+  - condition: template
+    value_template: >-
+      {{ trigger.to_state is not none
+         and trigger.to_state.state not in ['unknown', 'unavailable']
+         and (now() - as_datetime(trigger.to_state.state)).total_seconds() < 120
+         and trigger.to_state.attributes.event_type == 'check_out' }}
+
+actions:
+  - action: staysnet.get_stay
+    data:
+      entity_id: !input stays_event
+      which: last
+    response_variable: stay
+  - action: staysnet.get_stay
+    data:
+      entity_id: !input stays_event
+      which: next
+    response_variable: next_stay
+  - variables:
+      property_name: "{{ trigger.to_state.attributes.property | default('') }}"
+      turnover: >-
+        {{ next_stay.found
+           and (as_datetime(next_stay.check_in) | as_local).date() == now().date() }}
+      next_time: >-
+        {{ (as_datetime(next_stay.check_in) | as_local).strftime('%H:%M') if next_stay.found else '' }}
+      next_day: >-
+        {{ (as_datetime(next_stay.check_in) | as_local).strftime('%d/%m') if next_stay.found else '' }}
+      title: >-
+        {{ '⚠️ Virada hoje' if turnover else 'Check-out' }} · {{ property_name }}
+      message: >-
+        {% if turnover -%}
+        Check-out feito. Virada hoje: {{ next_stay.guest_name or next_stay.reservation_id }}
+        chega às {{ next_time }}
+        ({{ next_stay.guest_count or '?' }} hóspedes).
+        {%- elif next_stay.found -%}
+        Check-out feito. Próxima chegada em {{ next_day }} às {{ next_time }}.
+        {%- else -%}
+        Check-out feito. Sem próxima reserva nos dados do Stays.
+        {%- endif %}
+  - sequence: !input cleaning_actions

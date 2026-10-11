@@ -39,6 +39,7 @@ async def test_occupied_stay(
     assert attrs["channel"] == "Airbnb"
     assert attrs["guest_phone"] == "+5511987654321"
     assert attrs["door_code"] == "4321"
+    assert attrs["door_code_source"] == "phone"
     assert attrs["guest_count"] == 3
     assert attrs["confirmation_code"] == "HMABC123"
     # PII that must NOT be exposed
@@ -67,7 +68,9 @@ async def test_vacant_and_checkin_today(
     guest = hass.states.get("sensor.casa_cynthia_guest")
     assert guest.state == "João Souza"  # fName/lName fallback
     assert guest.attributes["which"] == "next"
-    assert guest.attributes["door_code"] == ""
+    # no phone (Booking-style): falls back to the confirmation code
+    assert guest.attributes["door_code"] == "3210"
+    assert guest.attributes["door_code_source"] == "confirmation_code"
 
 
 async def test_status_changes_without_new_poll(
@@ -233,10 +236,10 @@ async def test_pii_not_recorded_and_diagnostics_redacted(
     from custom_components.staysnet.diagnostics import (
         async_get_config_entry_diagnostics,
     )
-    from custom_components.staysnet.sensor import StaysGuest
+    from custom_components.staysnet.sensor import StaysSensor
 
     for attr in ("guest_email", "guest_phone", "door_code"):
-        assert attr in StaysGuest._unrecorded_attributes
+        assert attr in StaysSensor._unrecorded_attributes
     assert "description" in StaysCalendar._unrecorded_attributes
 
     freezer.move_to("2026-10-10 15:00:00+00:00")
@@ -246,4 +249,9 @@ async def test_pii_not_recorded_and_diagnostics_redacted(
     assert "secret" not in text and "user@example.com" not in text
     assert "Maria" not in text and "5511987654321" not in text
     assert "maria@example.com" not in text
-    assert diag["properties"][APT_ID][0]["has_phone"] is True
+    first = diag["properties"][APT_ID]["reservations"][0]
+    assert first["has_phone"] is True
+    assert first["door_code_source"] == "phone"
+    # raw Stays strings are exposed to see where check-in/out hours come from
+    assert first["stays_raw_check_in"].startswith("2026-10-08")
+    assert diag["properties"][APT_ID]["blocks"] == 1

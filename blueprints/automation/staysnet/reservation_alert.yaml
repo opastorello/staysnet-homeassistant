@@ -1,0 +1,93 @@
+blueprint:
+  name: "Stays.net · Aviso de reserva nova, alterada ou cancelada"
+  description: >-
+    Dispara quando uma reserva é criada, tem as datas alteradas ou é cancelada, e
+    executa suas ações de notificação.
+
+
+    Variáveis disponíveis nas ações: `title`, `message` (texto pronto em português),
+    `event_type`, `property_name`, `guest_name`, `reservation_id`, `channel`,
+    `guest_count`, `check_in` e `check_out`.
+
+
+    Cancelamentos só são avisados depois de a reserva sumir de duas consultas
+    seguidas ao Stays, para evitar alarme falso.
+  domain: automation
+  author: opastorello
+  source_url: https://github.com/opastorello/staysnet-homeassistant/blob/main/blueprints/automation/staysnet/reservation_alert.yaml
+  homeassistant:
+    min_version: 2024.10.0
+  input:
+    stays_event:
+      name: Propriedade (entidade "Eventos da estadia")
+      selector:
+        entity:
+          filter:
+            - integration: staysnet
+              domain: event
+    notify_created:
+      name: Avisar reservas novas
+      default: true
+      selector:
+        boolean: {}
+    notify_changed:
+      name: Avisar reservas alteradas
+      default: true
+      selector:
+        boolean: {}
+    notify_cancelled:
+      name: Avisar reservas canceladas
+      default: true
+      selector:
+        boolean: {}
+    notify_actions:
+      name: Como notificar
+      description: Por exemplo, uma notificação no celular. Use `{{ title }}` e `{{ message }}`.
+      selector:
+        action: {}
+
+mode: queued
+max_exceeded: silent
+
+triggers:
+  - trigger: state
+    entity_id: !input stays_event
+
+variables:
+  want_created: !input notify_created
+  want_changed: !input notify_changed
+  want_cancelled: !input notify_cancelled
+  attrs: "{{ trigger.to_state.attributes if trigger.to_state is not none else {} }}"
+  event_type: "{{ attrs.event_type | default('') }}"
+  property_name: "{{ attrs.property | default('') }}"
+  guest_name: "{{ attrs.guest_name | default('') }}"
+  reservation_id: "{{ attrs.reservation_id | default('') }}"
+  channel: "{{ attrs.channel | default('') }}"
+  guest_count: "{{ attrs.guest_count | default('') }}"
+  check_in: "{{ attrs.check_in | default('') }}"
+  check_out: "{{ attrs.check_out | default('') }}"
+  title: "Stays · {{ property_name }}"
+  message: >-
+    {% set ci = (as_timestamp(check_in) | timestamp_custom('%d/%m', true)) if check_in else '?' %}
+    {% set co = (as_timestamp(check_out) | timestamp_custom('%d/%m', true)) if check_out else '?' %}
+    {% set who = guest_name or reservation_id %}
+    {% if event_type == 'reservation_created' -%}
+    Nova reserva: {{ who }} · {{ ci }} → {{ co }} ({{ channel }}{% if guest_count %}, {{ guest_count }} hóspedes{% endif %})
+    {%- elif event_type == 'reservation_changed' -%}
+    Reserva alterada: {{ who }} · agora {{ ci }} → {{ co }}
+    {%- elif event_type == 'reservation_cancelled' -%}
+    Reserva cancelada: {{ who }} · {{ ci }} → {{ co }}
+    {%- endif %}
+
+conditions:
+  - condition: template
+    value_template: >-
+      {{ trigger.to_state is not none
+         and trigger.to_state.state not in ['unknown', 'unavailable']
+         and (now() - as_datetime(trigger.to_state.state)).total_seconds() < 120
+         and ((event_type == 'reservation_created' and want_created)
+              or (event_type == 'reservation_changed' and want_changed)
+              or (event_type == 'reservation_cancelled' and want_cancelled)) }}
+
+actions:
+  - sequence: !input notify_actions

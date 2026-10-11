@@ -1,0 +1,20 @@
+get_stay:
+  fields:
+    entity_id:
+      required: true
+      example: event.casa_mae_eventos_da_estadia
+      selector:
+        entity:
+          filter:
+            - integration: staysnet
+    which:
+      required: false
+      default: auto
+      selector:
+        select:
+          translation_key: which
+          options:
+            - auto
+            - current
+            - next
+            - last

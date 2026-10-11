@@ -1,15 +1,16 @@
-"""Calendar platform: one calendar per property with its reservations."""
+"""Calendars: reservations and blocks (blocked / maintenance) per property."""
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
 
 from homeassistant.components.calendar import CalendarEntity, CalendarEvent
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
+from homeassistant.util import dt as dt_util
 
 from . import StaysConfigEntry
-from .coordinator import Reservation, StaysCoordinator
+from .coordinator import Block, Reservation, StaysCoordinator
 from .entity import StaysEntity
 
 
@@ -37,15 +38,27 @@ def to_event(res: Reservation) -> CalendarEvent:
     )
 
 
+def block_to_event(block: Block) -> CalendarEvent:
+    return CalendarEvent(
+        start=block.start,  # dates => all-day event, end exclusive
+        end=block.end,
+        summary="Manutenção" if block.kind == "maintenance" else "Bloqueio",
+        description=f"Stays: {block.code}" if block.code else None,
+        uid=block.mongo_id or block.code,
+    )
+
+
 async def async_setup_entry(
     hass: HomeAssistant,
     entry: StaysConfigEntry,
     async_add_entities: AddConfigEntryEntitiesCallback,
 ) -> None:
     coordinator = entry.runtime_data
-    async_add_entities(
-        StaysCalendar(coordinator, apt_id) for apt_id in coordinator.property_ids
-    )
+    entities: list[CalendarEntity] = []
+    for apt_id in coordinator.property_ids:
+        entities.append(StaysCalendar(coordinator, apt_id))
+        entities.append(StaysBlocksCalendar(coordinator, apt_id))
+    async_add_entities(entities)
 
 
 class StaysCalendar(StaysEntity, CalendarEntity):
@@ -71,6 +84,35 @@ class StaysCalendar(StaysEntity, CalendarEntity):
     ) -> list[CalendarEvent]:
         return [
             to_event(r)
-            for r in self.coordinator.data.get(self._apartment_id, [])
+            for r in self.coordinator.data.reservations.get(self._apartment_id, [])
             if r.start < end_date and r.end > start_date
+        ]
+
+
+class StaysBlocksCalendar(StaysEntity, CalendarEntity):
+    """Blocked / maintenance periods of one property (all-day events)."""
+
+    _attr_translation_key = "blocks"
+
+    def __init__(self, coordinator: StaysCoordinator, apartment_id: str) -> None:
+        super().__init__(coordinator, apartment_id)
+        self._attr_unique_id = f"{apartment_id}_blocks"
+
+    def _blocks(self) -> list[Block]:
+        return self.coordinator.data.blocks.get(self._apartment_id, [])
+
+    @property
+    def event(self) -> CalendarEvent | None:
+        today: date = dt_util.now().date()
+        for block in self._blocks():
+            if block.end > today:  # sorted by start: current first, else next
+                return block_to_event(block)
+        return None
+
+    async def async_get_events(
+        self, hass: HomeAssistant, start_date: datetime, end_date: datetime
+    ) -> list[CalendarEvent]:
+        start, end = dt_util.as_local(start_date).date(), dt_util.as_local(end_date).date()
+        return [
+            block_to_event(b) for b in self._blocks() if b.start < end and b.end > start
         ]

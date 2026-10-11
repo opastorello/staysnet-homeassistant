@@ -62,6 +62,15 @@
     "binary_sensor": {
       "occupied": {
         "name": "Ocupado"
+      },
+      "checkin_today": {
+        "name": "Check-in hoje"
+      },
+      "checkout_today": {
+        "name": "Check-out hoje"
+      },
+      "turnover": {
+        "name": "Virada no mesmo dia"
       }
     },
     "sensor": {
@@ -82,7 +91,112 @@
       },
       "next_checkout": {
         "name": "Próximo check-out"
+      },
+      "next_guest": {
+        "name": "Próximo hóspede"
+      },
+      "last_guest": {
+        "name": "Último hóspede"
+      },
+      "reservation": {
+        "name": "Reserva"
+      },
+      "channel": {
+        "name": "Canal"
+      },
+      "guests": {
+        "name": "Nº de hóspedes"
+      },
+      "nights": {
+        "name": "Noites"
+      },
+      "last_checkout": {
+        "name": "Último check-out"
+      },
+      "days_to_checkin": {
+        "name": "Dias para o check-in"
+      },
+      "vacant_days": {
+        "name": "Dias vago"
+      },
+      "nights_remaining": {
+        "name": "Noites restantes"
+      },
+      "current_night": {
+        "name": "Noite atual"
+      },
+      "stay_progress": {
+        "name": "Progresso da estadia"
+      },
+      "upcoming_7d": {
+        "name": "Chegadas em 7 dias"
+      },
+      "upcoming_total": {
+        "name": "Reservas futuras"
+      },
+      "month_occupancy": {
+        "name": "Ocupação do mês"
+      },
+      "last_update": {
+        "name": "Última atualização"
       }
+    },
+    "calendar": {
+      "blocks": {
+        "name": "Bloqueios"
+      }
+    },
+    "event": {
+      "stay_events": {
+        "name": "Eventos da estadia",
+        "state_attributes": {
+          "event_type": {
+            "state": {
+              "check_in": "Check-in",
+              "check_out": "Check-out",
+              "reservation_created": "Reserva criada",
+              "reservation_changed": "Reserva alterada",
+              "reservation_cancelled": "Reserva cancelada"
+            }
+          }
+        }
+      }
+    },
+    "button": {
+      "refresh": {
+        "name": "Atualizar agora"
+      }
+    }
+  },
+  "services": {
+    "get_stay": {
+      "name": "Obter dados da estadia",
+      "description": "Devolve os dados do hóspede e da estadia (inclusive telefone, e-mail e senha da porta) de uma propriedade. Nada é gravado no histórico.",
+      "fields": {
+        "entity_id": {
+          "name": "Entidade",
+          "description": "Qualquer entidade do Stays.net da propriedade (por exemplo, a de eventos da estadia)."
+        },
+        "which": {
+          "name": "Estadia",
+          "description": "Qual estadia: auto (atual, senão a próxima), current (atual), next (próxima) ou last (a última encerrada)."
+        }
+      }
+    }
+  },
+  "selector": {
+    "which": {
+      "options": {
+        "auto": "Atual, senão a próxima",
+        "current": "Atual",
+        "next": "Próxima",
+        "last": "Última encerrada"
+      }
+    }
+  },
+  "exceptions": {
+    "not_a_property_entity": {
+      "message": "{entity_id} não é uma entidade de uma propriedade selecionada do Stays.net."
     }
   }
 }

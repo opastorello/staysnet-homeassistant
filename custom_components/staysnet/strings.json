@@ -62,6 +62,15 @@
     "binary_sensor": {
       "occupied": {
         "name": "Occupied"
+      },
+      "checkin_today": {
+        "name": "Check-in today"
+      },
+      "checkout_today": {
+        "name": "Check-out today"
+      },
+      "turnover": {
+        "name": "Same-day turnover"
       }
     },
     "sensor": {
@@ -82,7 +91,112 @@
       },
       "next_checkout": {
         "name": "Next check-out"
+      },
+      "next_guest": {
+        "name": "Next guest"
+      },
+      "last_guest": {
+        "name": "Last guest"
+      },
+      "reservation": {
+        "name": "Reservation"
+      },
+      "channel": {
+        "name": "Channel"
+      },
+      "guests": {
+        "name": "Guests"
+      },
+      "nights": {
+        "name": "Nights"
+      },
+      "last_checkout": {
+        "name": "Last check-out"
+      },
+      "days_to_checkin": {
+        "name": "Days to check-in"
+      },
+      "vacant_days": {
+        "name": "Vacant days"
+      },
+      "nights_remaining": {
+        "name": "Nights remaining"
+      },
+      "current_night": {
+        "name": "Current night"
+      },
+      "stay_progress": {
+        "name": "Stay progress"
+      },
+      "upcoming_7d": {
+        "name": "Arrivals in 7 days"
+      },
+      "upcoming_total": {
+        "name": "Upcoming reservations"
+      },
+      "month_occupancy": {
+        "name": "Occupancy this month"
+      },
+      "last_update": {
+        "name": "Last update"
       }
+    },
+    "calendar": {
+      "blocks": {
+        "name": "Blocks"
+      }
+    },
+    "event": {
+      "stay_events": {
+        "name": "Stay events",
+        "state_attributes": {
+          "event_type": {
+            "state": {
+              "check_in": "Check-in",
+              "check_out": "Check-out",
+              "reservation_created": "Reservation created",
+              "reservation_changed": "Reservation changed",
+              "reservation_cancelled": "Reservation cancelled"
+            }
+          }
+        }
+      }
+    },
+    "button": {
+      "refresh": {
+        "name": "Refresh now"
+      }
+    }
+  },
+  "services": {
+    "get_stay": {
+      "name": "Get stay details",
+      "description": "Returns the guest and stay details (including phone, e-mail and door code) of a property. Nothing is stored in the history.",
+      "fields": {
+        "entity_id": {
+          "name": "Entity",
+          "description": "Any Stays.net entity of the property (for example its stay events entity)."
+        },
+        "which": {
+          "name": "Stay",
+          "description": "Which stay: auto (current, otherwise next), current, next or last (most recently finished)."
+        }
+      }
+    }
+  },
+  "selector": {
+    "which": {
+      "options": {
+        "auto": "Current, otherwise next",
+        "current": "Current",
+        "next": "Next",
+        "last": "Last finished"
+      }
+    }
+  },
+  "exceptions": {
+    "not_a_property_entity": {
+      "message": "{entity_id} is not an entity of a selected Stays.net property."
     }
   }
 }
